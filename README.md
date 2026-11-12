@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Ideas start here.</strong><br/>
-  A thoughtfully designed AI chat experience, available to everyone — no signup, no installation.
+  A free, no-signup AI chat workspace with two assistant modes, saved conversations and six customizable themes.
 </p>
 
 <p align="center">
@@ -29,11 +29,11 @@
 
 ## Built for the conversation, not the setup
 
-ECHO is a **free, browser-based AI chatbot website** designed around a simple idea: great tools should be easy to access. Open a link, ask a question, brainstorm an idea, or work through a problem — all in a focused, responsive interface.
+**ECHO AI** is a free, browser-based chatbot designed around a simple idea: useful AI should be easy to access. Open the site, choose **ECHO Quick** or **ECHO Balanced**, ask a question, brainstorm an idea, or work through a problem — no login required.
 
 It's a real web project built with HTML, CSS, and vanilla JavaScript, hosted on GitHub Pages. Visitors don't need an account or a local installation.
 
-### Features
+## <a id="features"></a>Features
 
 | A focused chat experience | Tools that make it useful |
 | :--- | :--- |
@@ -41,7 +41,20 @@ It's a real web project built with HTML, CSS, and vanilla JavaScript, hosted on 
 | **Six color themes** — choose Midnight, Pearl, Ocean, Forest, Ember, or Lavender | **Chat search** — locate earlier conversations |
 | **Responsive layout** — use it on desktop or mobile | **Copy & regenerate** — make responses easier to reuse |
 | **Streaming replies** — watch responses arrive as they are generated | **Custom instructions** — personalize response style |
-| **Two explained AI modes** — learn when to use ECHO Quick vs ECHO Balanced | **Markdown export** — take a conversation with you |
+| **Two AI modes** — ECHO Quick and ECHO Balanced | **Markdown export** — take a conversation with you |
+
+### Choose your AI mode
+
+| ECHO mode | Best suited for | Default hosted model |
+| :--- | :--- | :--- |
+| **ECHO Quick** | Everyday questions, short explanations and drafts | `gpt-oss-20b` |
+| **ECHO Balanced** | Longer answers, coding questions and more involved tasks | `Meta-Llama-3_3-70B-Instruct` |
+
+These are the **website's mode names**, not proprietary models developed by the creator. The default integration currently uses externally hosted models on OVHcloud AI Endpoints. Availability, response quality and speed depend on that provider.
+
+### Customize your workspace
+
+Six themes are included: **Midnight, Pearl, Ocean, Forest, Ember and Lavender**. You can switch themes, manage chat history, search conversations, set custom instructions and export chats to Markdown. Preferences and saved chats remain in this browser.
 
 ## <a id="how-it-works"></a>How it works
 
@@ -62,8 +75,8 @@ The default integration uses **OVHcloud AI Endpoints**. An optional Cloudflare W
 | :--- | :--- |
 | Interface | HTML5, CSS3, vanilla JavaScript |
 | Site hosting | GitHub Pages |
-| AI inference | Third-party hosted language models via OVHcloud AI Endpoints |
-| Optional fallback | Cloudflare Worker |
+| AI inference | OVHcloud AI Endpoints (ECHO Quick and ECHO Balanced) |
+| Optional alternate deployment | Cloudflare Worker with Workers AI |
 | Chat storage | Browser `localStorage` |
 
 ## Run your own copy
@@ -102,13 +115,13 @@ echoai/
 
 **ECHO was created by [Nittin Chughani](https://github.com/NittinChughani)**, a Computer Science & Engineering student and digital creator from Pakistan.
 
-ECHO is part of an ongoing effort to build useful, accessible open-source projects — tools that people can learn from and actually use.
+ECHO is one of several independent open-source projects created to make everyday tasks and learning more accessible. Another project, **GearEx**, helps people learn programming and understand code execution step by step.
 
-**More from Nittin**
+**Other open-source projects by the creator**
 
 | Project | What it offers |
 | :--- | :--- |
-| **[CodeLab Academy](https://github.com/NittinChughani/codelab-academy)** | A free, interactive C/C++ learning website with lessons, challenges, quizzes, and a coding playground. [Try it live](https://nittinchughani.github.io/codelab-academy/). |
+| **[GearEx](https://github.com/NittinChughani/gearex)** | An interactive learning platform for **7 programming languages** with guided lessons, a built-in Code Visualizer, an online Compiler, quizzes and course-completion certificates. **[Open GearEx](https://nittinchughani.github.io/gearex/)**. |
 | **[C-CODE-BASIC-TO-ADVANCE](https://github.com/NittinChughani/C-CODE-BASIC-TO-ADVANCE)** | C programming practice and learning resources. |
 | **[OOPS-IN-C-PLUS-PLUS](https://github.com/NittinChughani/OOPS-IN-C-PLUS-PLUS)** | Object-oriented programming work in C++. |
 
@@ -122,7 +135,7 @@ ECHO is part of an ongoing effort to build useful, accessible open-source projec
 
 ECHO is released under the [MIT License](LICENSE). Feel free to explore the implementation, fork the project, and suggest improvements through [GitHub Issues](https://github.com/NittinChughani/echoai/issues).
 
-The **ECHO website** was created by Nittin Chughani. The underlying AI models and hosted inference are supplied by third parties; ECHO does not claim to have developed or trained those models.
+The **ECHO website and user interface** were created by Nittin Chughani. The underlying AI models and hosted inference are supplied by third parties; ECHO does not claim to have developed or trained those models.
 
 <p align="center">
   <sub>Made to be useful, built to be shared.</sub>
