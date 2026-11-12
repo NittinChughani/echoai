@@ -10,13 +10,13 @@
 </p>
 
 <p align="center">
-  <a href="https://nittinchughani.github.io/echo-ai-chatbot/"><img alt="Launch ECHO" src="https://img.shields.io/badge/LAUNCH_ECHO-8B5CF6?style=for-the-badge&logo=googlechrome&logoColor=white"/></a>
-  <a href="https://github.com/NittinChughani/echo-ai-chatbot"><img alt="Open source" src="https://img.shields.io/badge/OPEN_SOURCE-171923?style=for-the-badge&logo=github&logoColor=white"/></a>
+  <a href="https://nittinchughani.github.io/echoai/"><img alt="Launch ECHO" src="https://img.shields.io/badge/LAUNCH_ECHO-8B5CF6?style=for-the-badge&logo=googlechrome&logoColor=white"/></a>
+  <a href="https://github.com/NittinChughani/echoai"><img alt="Open source" src="https://img.shields.io/badge/OPEN_SOURCE-171923?style=for-the-badge&logo=github&logoColor=white"/></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/LICENSE-MIT-16A085?style=for-the-badge"/></a>
 </p>
 
 <p align="center">
-  <a href="https://nittinchughani.github.io/echo-ai-chatbot/"><b>Try ECHO</b></a>
+  <a href="https://nittinchughani.github.io/echoai/"><b>Try ECHO</b></a>
   &nbsp;·&nbsp;
   <a href="#features">Explore features</a>
   &nbsp;·&nbsp;
@@ -47,7 +47,7 @@ It's a real web project built with HTML, CSS, and vanilla JavaScript, hosted on 
 
 ECHO keeps the interface lightweight and the setup straightforward:
 
-1. **Open the [live website](https://nittinchughani.github.io/echo-ai-chatbot/).** GitHub Pages serves the static frontend from the `docs/` folder.
+1. **Open the [live website](https://nittinchughani.github.io/echoai/).** GitHub Pages serves the static frontend from the `docs/` folder.
 2. **Send a message.** The browser sends the conversation to an external hosted AI endpoint.
 3. **Read, explore, and continue.** Responses appear in the chat interface; conversation history is saved in your browser's local storage.
 
@@ -80,7 +80,7 @@ For AI configuration, see [`docs/config.js`](docs/config.js). The optional backe
 <summary><b>Explore the project structure</b></summary>
 
 ~~~text
-echo-ai-chatbot/
+echoai/
 ├── docs/
 │   ├── index.html         # Website
 │   ├── styles.css         # Visual design and responsive styling
@@ -120,7 +120,7 @@ ECHO is part of an ongoing effort to build useful, accessible open-source projec
 
 ## Open source & contributions
 
-ECHO is released under the [MIT License](LICENSE). Feel free to explore the implementation, fork the project, and suggest improvements through [GitHub Issues](https://github.com/NittinChughani/echo-ai-chatbot/issues).
+ECHO is released under the [MIT License](LICENSE). Feel free to explore the implementation, fork the project, and suggest improvements through [GitHub Issues](https://github.com/NittinChughani/echoai/issues).
 
 The **ECHO website** was created by Nittin Chughani. The underlying AI models and hosted inference are supplied by third parties; ECHO does not claim to have developed or trained those models.
 
