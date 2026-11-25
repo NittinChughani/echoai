@@ -1,7 +1,8 @@
-/* ECHO provider configuration — no credentials or keys required.
-   The free anonymous OVHcloud endpoint is used by default.
-   If it is unavailable, the optional Cloudflare Worker can be configured later. */
+/* ECHO AI provider configuration.
+   Keep OVHcloud active until the Cloudflare Worker has been deployed and tested.
+   Switch PROVIDER to 'cloudflare' and set API_BASE to the actual HTTPS Worker URL.
+   Only the public Worker URL belongs here. Never add API tokens or other secrets. */
 window.ECHO_CONFIG = Object.freeze({
   PROVIDER: 'ovh',
-  API_BASE: '' // Cloudflare fallback only. Example: https://echo.example.workers.dev
+  API_BASE: ''
 });
