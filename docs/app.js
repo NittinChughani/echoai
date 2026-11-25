@@ -365,8 +365,15 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        if (response.status === 429) throw new Error('Free AI rate limit reached (about 2 requests/minute per model). Please try again shortly.');
-        if (response.status === 401 || response.status === 403) throw new Error('The free AI provider is currently requiring authentication. The website owner can switch to the Cloudflare fallback.');
+        if (response.status === 429) {
+          const detail = typeof errorData.error === 'string' ? errorData.error : errorData.error?.message;
+          throw new Error(useCloudflare
+            ? (detail || 'ECHO is temporarily at its cloud AI usage limit. Please try again later.')
+            : 'The current AI provider is busy or rate limited. Please try again shortly.');
+        }
+        if (response.status === 401 || response.status === 403) throw new Error(useCloudflare
+          ? 'ECHO cannot access its AI backend right now. Please report this issue.'
+          : 'The current AI provider requires authentication. Please try again later.');
         throw new Error(errorData.error?.message || errorData.error || `AI request failed (${response.status}).`);
       }
       if ((response.headers.get('content-type') || '').includes('text/event-stream')) {
@@ -438,6 +445,7 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
       if (!res.ok) throw new Error();
       const status = await res.json();
       if (!status.ready) { els.presence.textContent = 'AI not configured'; els.presence.title = 'The website owner has not enabled AI inference.'; }
+      else { els.presence.textContent = 'Cloud AI · Free'; els.presence.title = 'Powered by Cloudflare Workers AI. Shared daily free allowance; availability varies.'; }
     } catch {
       els.presence.textContent = 'AI unavailable';
       els.presence.title = 'The AI backend could not be reached. Ask the website owner to check the Cloudflare Worker and CORS settings.';
