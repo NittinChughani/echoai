@@ -1,9 +1,13 @@
 /* ECHO AI — paste into a Cloudflare Worker via your web browser (no Node.js).
    After deployment, add a Workers AI binding named AI in Worker settings.
-   The site files live on GitHub Pages at https://nittinchughani.github.io/ECHO-AI/
+   The site files live on GitHub Pages at https://nittinchughani.github.io/echoai/
    There are NO API tokens in this script and visitors do not sign in.
 */
 const SITE_ORIGIN = 'https://nittinchughani.github.io';
+// Use standard hosted models, subject to free-tier availability.
+const MAX_BODY_BYTES = 48_000;
+const MAX_CONTEXT_CHARS = 12_000;
+const MAX_CONTEXT_MESSAGES = 8;
 const MODELS = Object.freeze({
   quick: '@cf/meta/llama-3.1-8b-instruct-fast',
   balanced: '@cf/google/gemma-4-26b-a4b-it'
@@ -46,17 +50,24 @@ function err(message, status, origin) {
 }
 function validateMessages(messages) {
   if (!Array.isArray(messages) || messages.length < 1 || messages.length > 14) return null;
-  let total = 0;
-  const result = [];
   for (const m of messages) {
-    if (!m || !['user', 'assistant'].includes(m.role) || typeof m.content !== 'string') return null;
-    const content = m.content.trim();
-    if (!content || content.length > 6500) return null;
-    total += content.length;
-    if (total > 25000) return null;
-    result.push({ role: m.role, content });
+    if (!m || !['user', 'assistant'].includes(m.role) || typeof m.content !== 'string' ||
+        !m.content.trim() || m.content.length > 6500) return null;
   }
-  return result.at(-1)?.role === 'user' ? result : null;
+  if (messages.at(-1).role !== 'user') return null;
+  // Preserve complete recent messages; never truncate the latest user question.
+  // Discard old context rather than paying to send the entire saved conversation.
+  const result = [];
+  let total = 0;
+  for (let i = messages.length - 1; i >= 0 && result.length < MAX_CONTEXT_MESSAGES; i--) {
+    const m = messages[i];
+    const content = m.content.trim();
+    if (total + content.length > MAX_CONTEXT_CHARS) break;
+    total += content.length;
+    result.unshift({ role: m.role, content });
+  }
+  while (result.length && result[0].role !== 'user') result.shift();
+  return result.length ? result : null;
 }
 
 export default {
@@ -65,7 +76,7 @@ export default {
     const pathname = new URL(request.url).pathname;
     // A visitor who opens the worker's URL directly can see a simple health response.
     if (request.method === 'GET' && pathname === '/') {
-      return json({ service: 'ECHO AI backend', message: 'Website: https://nittinchughani.github.io/ECHO-AI/' }, 200, SITE_ORIGIN);
+      return json({ service: 'ECHO AI backend', message: 'Website: https://nittinchughani.github.io/echoai/' }, 200, SITE_ORIGIN);
     }
     // Only the GitHub Pages browser origin is allowed to use the API.
     if (origin !== SITE_ORIGIN) {
@@ -76,20 +87,33 @@ export default {
       return new Response(null, { status: 204, headers: cors(origin) });
     }
     if (pathname === '/api/health' && request.method === 'GET') {
-      return json({ service:'ECHO', ready:!!env.AI, visitorsNeedLogin:false }, 200, origin);
+      return json({ service:'ECHO', provider:'cloudflare', ready:typeof env.AI?.run === 'function', models:MODELS, visitorsNeedLogin:false }, 200, origin);
     }
     if (pathname !== '/api/chat') return err('Not found.', 404, origin);
     if (request.method !== 'POST') return err('Only POST is supported.', 405, origin);
     if (!request.headers.get('content-type')?.toLowerCase().includes('application/json')) {
       return err('Expected JSON.', 415, origin);
     }
-    if (Number(request.headers.get('content-length') || 0) > 50000) {
+    if (Number(request.headers.get('content-length') || 0) > MAX_BODY_BYTES) {
       return err('Your request is too long.', 413, origin);
     }
     let data;
     try {
-      const body = await request.text();
-      if (body.length > 50000) return err('Your request is too long.', 413, origin);
+      const reader = request.body?.getReader();
+      if (!reader) return err('Invalid chat request.', 400, origin);
+      const decoder = new TextDecoder();
+      let bytes = 0, body = '';
+      while (true) {
+        const {done,value} = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        if (bytes > MAX_BODY_BYTES) {
+          await reader.cancel();
+          return err('Your request is too long.', 413, origin);
+        }
+        body += decoder.decode(value,{stream:true});
+      }
+      body += decoder.decode();
       data = JSON.parse(body);
     } catch {
       return err('Invalid chat request.', 400, origin);
@@ -118,7 +142,7 @@ export default {
           ...messages
         ],
         stream: true,
-        max_tokens: mode === 'quick' ? 750 : 1050
+        max_tokens: mode === 'quick' ? 512 : 900
       });
       if (output instanceof ReadableStream) {
         return new Response(output, {
@@ -131,11 +155,19 @@ export default {
         });
       }
       const answer = typeof output?.response === 'string' ? output.response : output?.choices?.[0]?.message?.content || '';
+      if (!answer.trim()) return err('The AI returned an empty answer. Please try again.', 502, origin);
       return json({ response: answer }, 200, origin);
     } catch (e) {
       const details = String(e?.message || e || '');
-      if (/quota|exceed|neurons|capacity|limit|insufficient|billing/i.test(details)) {
-        return err('ECHO has reached its free AI usage allowance. Please return after the daily reset.', 429, origin);
+      const code = Number(e?.code || e?.errors?.[0]?.code || 0);
+      if (code === 3036 || /\b3036\b|daily free allocation|daily.*neurons|daily.*quota/i.test(details)) {
+        return err('ECHO has used its shared daily free AI allowance. It resets at 00:00 UTC.', 429, origin);
+      }
+      if (code === 3040 || /\b3040\b|capacity|rate.limit|too many requests|\b429\b/i.test(details)) {
+        return err('The AI service is busy right now. Please try again shortly.', 429, origin);
+      }
+      if (code === 5035 || /\b5035\b|paid plan|billing/i.test(details)) {
+        return err('This AI model is not available under the current provider plan. Please report this issue.', 503, origin);
       }
       return err('The AI service is temporarily unavailable. Please try again.', 502, origin);
     }
