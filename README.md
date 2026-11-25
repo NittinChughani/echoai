@@ -42,15 +42,16 @@ It's a real web project built with HTML, CSS, and vanilla JavaScript, hosted on 
 | **Responsive layout** — use it on desktop or mobile | **Copy & regenerate** — make responses easier to reuse |
 | **Streaming replies** — watch responses arrive as they are generated | **Custom instructions** — personalize response style |
 | **Two AI modes** — ECHO Quick and ECHO Balanced | **Markdown export** — take a conversation with you |
+| **Smart recovery** — automatic retry for temporary connection failures | **Optional model fallback** — clearly labeled responses and manual retry |
 
 ### Choose your AI mode
 
 | ECHO mode | Best suited for | Default hosted model |
 | :--- | :--- | :--- |
-| **ECHO Quick** | Everyday questions, short explanations and drafts | `gpt-oss-20b` |
-| **ECHO Balanced** | Longer answers, coding questions and more involved tasks | `Meta-Llama-3_3-70B-Instruct` |
+| **ECHO Quick** | Everyday questions, short explanations and drafts | `@cf/meta/llama-3.1-8b-instruct-fast` |
+| **ECHO Balanced** | Longer answers, coding questions and more involved tasks | `@cf/google/gemma-4-26b-a4b-it` |
 
-These are the **website's mode names**, not proprietary models developed by the creator. The default integration currently uses externally hosted models on OVHcloud AI Endpoints. Availability, response quality and speed depend on that provider.
+These are the **website's mode names**, not proprietary models developed by the creator. The active integration uses Cloudflare Workers AI. Availability, response quality and speed depend on the hosted models.
 
 ### Customize your workspace
 
@@ -64,7 +65,7 @@ ECHO keeps the interface lightweight and the setup straightforward:
 2. **Send a message.** The browser sends the conversation to an external hosted AI endpoint.
 3. **Read, explore, and continue.** Responses appear in the chat interface; conversation history is saved in your browser's local storage.
 
-The current production configuration uses **OVHcloud AI Endpoints**. A Cloudflare Workers AI migration is prepared in this repository to improve request throughput while keeping access free for visitors. See the [Cloudflare setup guide](OPTIONAL_CLOUDFLARE_BACKUP.md). The migration becomes active only after a Worker is deployed and its URL is configured.
+The production configuration uses **Cloudflare Workers AI**. The website retries a temporary failure once, then can try the other model if automatic fallback is enabled in Preferences. The response shows the actual model used; the selected mode is unchanged. Explicit rate limits, daily quota errors and interrupted partial replies are not automatically retried. Attempts have bounded timeouts, and Stop cancels the recovery flow. For maintainers, see the [Cloudflare setup guide](OPTIONAL_CLOUDFLARE_BACKUP.md).
 
 > [!NOTE]
 > ECHO is free for visitors, but its third-party AI service has usage limits and may occasionally be unavailable. AI requests are processed by the external provider; don't send confidential information. Chat history is stored locally in your browser, not synced between devices.
@@ -75,8 +76,8 @@ The current production configuration uses **OVHcloud AI Endpoints**. A Cloudflar
 | :--- | :--- |
 | Interface | HTML5, CSS3, vanilla JavaScript |
 | Site hosting | GitHub Pages |
-| AI inference | OVHcloud AI Endpoints (ECHO Quick and ECHO Balanced) |
-| Next AI backend (setup required) | Cloudflare Worker with Workers AI |
+| AI inference | Cloudflare Workers AI (ECHO Quick and ECHO Balanced) |
+| Backend | Cloudflare Worker |
 | Chat storage | Browser `localStorage` |
 
 ## Run your own copy
@@ -87,7 +88,7 @@ You don't need Node.js or a framework build process to explore the source.
 2. Open the `docs/` directory to explore the website's source files.
 3. To publish a copy, enable **GitHub Pages → Deploy from a branch → `main` → `/docs`** in your fork's settings.
 
-For AI configuration, see [`docs/config.js`](docs/config.js). The optional backend is in [`cloudflare/worker.js`](cloudflare/worker.js) with [setup notes](OPTIONAL_CLOUDFLARE_BACKUP.md).
+For AI configuration, see [`docs/config.js`](docs/config.js). The active backend source is in [`cloudflare/worker.js`](cloudflare/worker.js) with [setup notes](OPTIONAL_CLOUDFLARE_BACKUP.md).
 
 <details>
 <summary><b>Explore the project structure</b></summary>
@@ -103,7 +104,7 @@ echoai/
 ├── assets/
 │   └── echo-banner.svg    # README artwork
 ├── cloudflare/
-│   └── worker.js          # Optional fallback service
+│   └── worker.js          # Cloudflare AI backend
 ├── OPTIONAL_CLOUDFLARE_BACKUP.md
 ├── LICENSE
 └── README.md

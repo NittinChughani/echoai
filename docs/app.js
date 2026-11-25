@@ -47,6 +47,10 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
   let instructions = '';
   let theme = 'dark';
   let model = 'balanced';
+  let autoFallback = true;
+  const RETRY_DELAY_MS = 1200;
+  const TOTAL_RESPONSE_MS = 120000;
+  const MODE_LABEL = { quick:'ECHO Quick', balanced:'ECHO Balanced' };
 
   function uid() {
     if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
@@ -62,10 +66,10 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
       const data = chats.slice(0, MAX_CHATS).map(c => ({
         id: c.id, title: c.title, updated: c.updated,
         messages: c.messages.filter(m => m.status === 'done' || m.role === 'user').slice(-55)
-          .map(m => ({ role: m.role, content: m.content }))
+          .map(m => ({ role: m.role, content: m.content, ...(m.actualMode ? {actualMode:m.actualMode, requestedMode:m.requestedMode} : {}), ...(m.interrupted ? {interrupted:true} : {}) }))
       }));
       localStorage.setItem(DATA_KEY, JSON.stringify(data));
-      localStorage.setItem(PREF_KEY, JSON.stringify({ theme, model, instructions }));
+      localStorage.setItem(PREF_KEY, JSON.stringify({ theme, model, instructions, autoFallback }));
     } catch { showToast('Browser storage is full or unavailable. Export your chat to keep it.'); }
   }
   function load() {
@@ -74,11 +78,13 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
       .slice(0, MAX_CHATS).map(c => ({
         id: c.id, title: c.title.slice(0, 100), updated: Number(c.updated) || Date.now(),
         messages: c.messages.filter(m => ['user', 'assistant'].includes(m?.role) && typeof m.content === 'string')
-          .slice(-55).map(m => ({ role: m.role, content: m.content.slice(0, 6500), status: 'done' }))
+          .slice(-55).map(m => ({ role: m.role, content: m.content.slice(0, 6500), status: 'done', ...(m.role === 'assistant' && Object.hasOwn(MODE_LABEL,m.actualMode) ? {actualMode:m.actualMode, requestedMode:Object.hasOwn(MODE_LABEL,m.requestedMode)?m.requestedMode:m.actualMode} : {}), ...(m.role === 'assistant' && m.interrupted === true ? {interrupted:true} : {}) }))
       }));
     const prefs = readJson(PREF_KEY, {});
     if (THEMES.some(option => option.id === prefs.theme)) theme = prefs.theme;
     if (prefs.model === 'quick') model = 'quick';
+    autoFallback = prefs.autoFallback !== false;
+    $('auto-model-fallback').checked = autoFallback;
     if (typeof prefs.instructions === 'string') instructions = prefs.instructions.slice(0, 1200);
     applyTheme();
     els.model.value = model;
@@ -233,9 +239,24 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     el.className = `message ${message.role}`;
     el.innerHTML = `<div class="message-avatar">${message.role === 'user' ? 'Y' : '<span class="mini-logo"></span>'}</div><div class="message-body"><div class="message-header">${message.role === 'user' ? 'You' : 'ECHO'}</div><div class="message-content"></div><div class="message-actions"></div></div>`;
     const content = el.querySelector('.message-content');
-    if (message.status === 'loading' && !message.content) content.innerHTML = '<span class="thinking-dots" aria-label="ECHO is thinking"><i></i><i></i><i></i></span>';
+    if (message.status === 'loading' && !message.content) {
+      content.innerHTML = '<span class="thinking-dots" aria-label="ECHO is thinking"><i></i><i></i><i></i></span>';
+      if (message.progress) { const note=document.createElement('span'); note.className='recovery-progress'; note.setAttribute('role','status'); note.textContent=message.progress; content.append(note); }
+    }
     else if (message.status === 'error') { content.classList.add('message-error'); content.textContent = message.content; }
     else content.innerHTML = markdown(message.content);
+    if (message.role === 'assistant' && message.actualMode && MODE_LABEL[message.actualMode]) {
+      const tag = document.createElement('span');
+      tag.className = 'reply-mode' + (message.actualMode !== message.requestedMode ? ' fallback-mode' : '');
+      tag.textContent = MODE_LABEL[message.actualMode] + (message.actualMode !== message.requestedMode ? ' · fallback' : '');
+      tag.title = message.actualMode !== message.requestedMode ? 'The selected model was temporarily unavailable. Your preferred mode is unchanged.' : 'Model used for this response';
+      el.querySelector('.message-header').append(tag);
+    }
+    if (message.interrupted) {
+      const note=document.createElement('div'); note.className='interrupted-note';
+      note.textContent='Response interrupted. The text above has been preserved.';
+      content.append(note);
+    }
     const actions = el.querySelector('.message-actions');
     if (message.content && message.status === 'done') {
       const copy = document.createElement('button'); copy.type='button';copy.className='message-action';copy.innerHTML=icon('copy')+' Copy';
@@ -244,6 +265,11 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
         const regenerate = document.createElement('button');regenerate.type='button';regenerate.className='message-action';regenerate.innerHTML=icon('refresh')+' Regenerate';
         regenerate.addEventListener('click', regenerateAnswer);actions.append(regenerate);
       }
+    }
+    if (message.role === 'assistant' && index === messages.length - 1 && message.status === 'error') {
+      const retry = document.createElement('button'); retry.type='button'; retry.className='message-action retry-response';
+      retry.innerHTML=icon('refresh')+' Retry response';
+      retry.addEventListener('click',regenerateAnswer); actions.append(retry);
     }
     return el;
   }
@@ -284,7 +310,7 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     const chat = activeChat();
     const last = chat?.messages.at(-1);
     if (last?.role === 'assistant' && last.status === 'loading') {
-      if (last.content) last.status = 'done';
+      if (last.content) { last.status = 'done'; last.interrupted = true; }
       else { last.content = 'Response stopped.'; last.status = 'error'; }
     }
     persist(); renderAll();
@@ -302,7 +328,10 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     if (!data || data === '[DONE]') return;
     try {
       const item = JSON.parse(data);
-      if (item.error) throw new Error(typeof item.error === 'string' ? item.error : 'AI service error');
+      if (item.error) {
+        const detail = typeof item.error === 'string' ? item.error : (item.error.message || '');
+        throw classifyChatFailure(Number(item.error?.status || 0), detail);
+      }
       const delta = typeof item.response === 'string' ? item.response
         : item.choices?.[0]?.delta?.content ?? item.choices?.[0]?.message?.content ?? '';
       if (delta) onChunk(String(delta));
@@ -316,7 +345,7 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     while (true) {
       const {value, done} = await reader.read();
       if (done) break;
-      buffer += decoder.decode(value, {stream:true}).replace(/\r\n/g,'\n');
+      buffer = (buffer + decoder.decode(value, {stream:true})).replace(/\r\n/g,'\n');
       let boundary;
       while ((boundary = buffer.indexOf('\n\n')) !== -1) {
         const part = buffer.slice(0,boundary);buffer = buffer.slice(boundary+2);
@@ -334,78 +363,162 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     if (content) content.innerHTML = markdown(target.content);
     scrollBottom();
   }
-  async function requestAnswer(chat) {
-    if (generating) return;
-    generating = true; controller = new AbortController();
-    const myController = controller;
-    const target = {role:'assistant', content:'', status:'loading'};
-    const requestMessages = chat.messages.filter(m => m.role === 'user' || (m.role === 'assistant' && m.status === 'done'))
-      .slice(-14).map(m => ({role:m.role, content:m.content}));
-    chat.messages.push(target);
-    renderAll();
+  class ChatFailure extends Error {
+    constructor(message, retryable=false) {
+      super(message); this.name='ChatFailure'; this.retryable=retryable;
+    }
+  }
+  function classifyChatFailure(status, detail='') {
+    const message=String(detail || '');
+    if (/daily|free AI usage allowance|neurons|quota|billing|paid plan|provider plan|not configured/i.test(message)) {
+      return new ChatFailure(message || 'ECHO has reached its shared free AI allowance.');
+    }
+    // All explicit rate limits are respected: no automatic retries or model switching.
+    if (status === 429 || /rate.limit|too many requests|capacity|\b429\b/i.test(message)) {
+      return new ChatFailure(message || 'ECHO is busy or rate limited. Please try again later.');
+    }
+    if (status === 401 || status === 403) {
+      return new ChatFailure('ECHO cannot access its AI service right now. Please report this issue.');
+    }
+    const transient = [408,500,502,503,504,520,521,522,523,524].includes(status)
+      || /temporarily unavailable|service is busy|empty answer|network|connection|timeout|timed out/i.test(message);
+    return new ChatFailure(message || (transient ? 'ECHO could not reach the AI service.' : 'The AI service could not process your message.'), transient);
+  }
+  function waitForRecovery(signal) {
+    return new Promise((resolve,reject)=>{
+      if (signal.aborted) { reject(new ChatFailure('Response stopped.')); return; }
+      let timer;
+      const onAbort=()=>{clearTimeout(timer);signal.removeEventListener('abort',onAbort);reject(new ChatFailure('Response stopped.'));};
+      signal.addEventListener('abort',onAbort,{once:true});
+      timer=setTimeout(()=>{signal.removeEventListener('abort',onAbort);resolve();},RETRY_DELAY_MS);
+    });
+  }
+  function setRecoveryProgress(chat,target,message) {
+    target.progress=message;
+    if (activeId === chat.id) renderMessages();
+  }
+  async function performChatAttempt(chat,target,requestMessages,attemptMode,preference,signal,timeoutMs) {
+    const attemptController = new AbortController();
+    let timedOut=false;
+    const onAbort=()=>attemptController.abort();
+    signal.addEventListener('abort',onAbort,{once:true});
+    if (signal.aborted) onAbort();
+    const timer=setTimeout(()=>{timedOut=true;attemptController.abort();},timeoutMs);
     try {
-      if (useCloudflare && !isValidApi) {
-        throw new Error('The website owner must enter the Cloudflare Worker URL in docs/config.js.');
-      }
-      // Anonymous OVHcloud API works directly from the browser. No visitor login
-      // and no API key in GitHub. It has an anonymous rate limit per IP/model.
       const endpoint = useCloudflare ? apiUrl('/api/chat') : OVH_API;
-      // Keep browser requests within the Worker's input budget as well.
-      const cloudMessages = [];
-      let contextChars = 0;
-      for (let i = requestMessages.length - 1; i >= 0 && cloudMessages.length < 8; i--) {
-        const m = requestMessages[i];
-        if (contextChars + m.content.length > 12000) break;
-        cloudMessages.unshift(m);
-        contextChars += m.content.length;
+      const cloudMessages=[];
+      let contextChars=0;
+      for(let i=requestMessages.length-1;i>=0&&cloudMessages.length<8;i--){
+        const m=requestMessages[i];
+        if(contextChars+m.content.length>12000) break;
+        cloudMessages.unshift(m); contextChars+=m.content.length;
       }
-      while (cloudMessages.length && cloudMessages[0].role !== 'user') cloudMessages.shift();
-      const payload = useCloudflare ? { messages:cloudMessages, mode:model, instructions } : {
-        model: OVH_MODELS[model] || OVH_MODELS.quick,
-        messages: [
-          {role:'system',content:AI_SYSTEM + '\nCurrent selected ECHO mode: ' + (model === 'quick' ? 'Quick (gpt-oss-20b)' : 'Balanced (Meta-Llama-3_3-70B-Instruct)') + (instructions ? '\nStyle preference: ' + instructions : '')},
+      while(cloudMessages.length&&cloudMessages[0].role!=='user')cloudMessages.shift();
+      const payload = useCloudflare ? {messages:cloudMessages,mode:attemptMode,instructions:preference} : {
+        model:OVH_MODELS[attemptMode]||OVH_MODELS.quick,
+        messages:[
+          {role:'system',content:AI_SYSTEM+'\nCurrent selected ECHO mode: '+(attemptMode==='quick'?'Quick (gpt-oss-20b)':'Balanced (Meta-Llama-3_3-70B-Instruct)')+(preference?'\nStyle preference: '+preference:'')},
           ...requestMessages
         ],
-        stream:true,
-        max_tokens:model === 'quick' ? 850 : 1100
+        stream:true,max_tokens:attemptMode==='quick'?850:1100
       };
-      const response = await fetch(endpoint, {
-        method:'POST', headers:{'content-type':'application/json'},
-        body:JSON.stringify(payload), signal:myController.signal
+      const response=await fetch(endpoint,{
+        method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify(payload),signal:attemptController.signal
       });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (response.status === 429) {
-          const detail = typeof errorData.error === 'string' ? errorData.error : errorData.error?.message;
-          throw new Error(useCloudflare
-            ? (detail || 'ECHO is temporarily at its cloud AI usage limit. Please try again later.')
-            : 'The current AI provider is busy or rate limited. Please try again shortly.');
+      if(!response.ok){
+        const data=await response.json().catch(()=>({}));
+        const detail=typeof data.error==='string'?data.error:data.error?.message;
+        const failure=classifyChatFailure(response.status,detail);
+        // Respect an explicit Retry-After response even if it is a server error.
+        if(response.headers.get('retry-after'))failure.retryable=false;
+        throw failure;
+      }
+      if((response.headers.get('content-type')||'').includes('text/event-stream')){
+        await readStream(response,chunk=>{
+          if(signal.aborted||attemptController.signal.aborted)return;
+          target.actualMode=attemptMode;
+          target.content+=chunk;
+          updateStreamingMessage(chat,target);
+        });
+      }else{
+        const data=await response.json();
+        if(signal.aborted||attemptController.signal.aborted)throw new ChatFailure('Response stopped.');
+        if(data.error)throw classifyChatFailure(Number(data.error?.status||0),typeof data.error==='string'?data.error:data.error?.message);
+        target.actualMode=attemptMode;
+        target.content=typeof data.response==='string'?data.response:String(data.choices?.[0]?.message?.content||'');
+      }
+      if(signal.aborted)throw new ChatFailure('Response stopped.');
+      if(timedOut)throw new ChatFailure('The AI response timed out. Please try again.',true);
+      if(!target.content.trim())throw new ChatFailure('The AI returned an empty answer. Please try again.',true);
+      target.actualMode=attemptMode;
+    }catch(e){
+      if(signal.aborted)throw new ChatFailure('Response stopped.');
+      if(timedOut)throw new ChatFailure('The AI response timed out. Please try again.',true);
+      if(e instanceof ChatFailure)throw e;
+      if(e instanceof TypeError||e?.name==='NetworkError'||/failed to fetch|networkerror|load failed|streaming was interrupted|connection lost/i.test(String(e?.message||''))){
+        throw new ChatFailure('ECHO could not connect to its AI service. Please try again.',true);
+      }
+      throw new ChatFailure('ECHO could not complete the response. Please try again.');
+    }finally{
+      clearTimeout(timer);
+      signal.removeEventListener('abort',onAbort);
+    }
+  }
+  async function requestAnswer(chat) {
+    if(generating)return;
+    generating=true; controller=new AbortController();
+    const myController=controller;
+    const signal=myController.signal;
+    const requestedMode=model;
+    const preference=instructions;
+    const allowFallback=useCloudflare&&autoFallback;
+    const deadline=Date.now()+TOTAL_RESPONSE_MS;
+    const target={role:'assistant',content:'',status:'loading',requestedMode};
+    const requestMessages=chat.messages.filter(m=>m.role==='user'||(m.role==='assistant'&&m.status==='done'))
+      .slice(-14).map(m=>({role:m.role,content:m.content.slice(0,6500)}));
+    chat.messages.push(target);
+    renderAll();
+    try{
+      if(useCloudflare&&!isValidApi)throw new ChatFailure('The website owner must configure the AI backend.');
+      // At most three attempts: original, same-model retry, optional alternate mode.
+      // Never recover automatically from a quota/permission error or after receiving text.
+      const attempts=[requestedMode,requestedMode];
+      if(allowFallback)attempts.push(requestedMode==='quick'?'balanced':'quick');
+      for(let i=0;i<attempts.length;i++){
+        if(signal.aborted)throw new ChatFailure('Response stopped.');
+        if(i>0){
+          setRecoveryProgress(chat,target,i===1?'Reconnecting to ECHO…':'Trying '+MODE_LABEL[attempts[i]]+'…');
+          await waitForRecovery(signal);
         }
-        if (response.status === 401 || response.status === 403) throw new Error(useCloudflare
-          ? 'ECHO cannot access its AI backend right now. Please report this issue.'
-          : 'The current AI provider requires authentication. Please try again later.');
-        throw new Error(errorData.error?.message || errorData.error || `AI request failed (${response.status}).`);
+        const remaining=deadline-Date.now();
+        if(remaining<1000)throw new ChatFailure('The AI response timed out. Please retry.');
+        const attemptMode=attempts[i];
+        const timeout=Math.min(attemptMode==='quick'?35000:50000,remaining);
+        try{
+          await performChatAttempt(chat,target,requestMessages,attemptMode,preference,signal,timeout);
+          target.status='done'; target.progress='';
+          break;
+        }catch(e){
+          if(signal.aborted||target.content.length||!e.retryable||i===attempts.length-1)throw e;
+        }
       }
-      if ((response.headers.get('content-type') || '').includes('text/event-stream')) {
-        await readStream(response, chunk => {target.content += chunk; updateStreamingMessage(chat,target);});
-      } else {
-        const data = await response.json();
-        target.content = typeof data.response === 'string' ? data.response : String(data.choices?.[0]?.message?.content || '');
+    }catch(e){
+      // A previous request stopped by navigation must not overwrite a newer one.
+      if(controller!==myController)return;
+      if(target.content.length){
+        target.status='done';target.interrupted=true;
+      }else{
+        target.status='error';
+        target.content=signal.aborted?'Response stopped.':(e?.message||'ECHO is temporarily unavailable. Please retry.');
       }
-      if (!target.content.trim()) throw new Error('The AI returned an empty answer. Please try again.');
-      target.status = 'done';
-    } catch (e) {
-      if (myController.signal.aborted) {
-        target.status = target.content ? 'done' : 'error';
-        if (!target.content) target.content = 'Response stopped.';
-      } else {
-        target.content = e?.message || 'Could not reach the AI service. Please try again.';
-        target.status = 'error';
+      target.progress='';
+    }finally{
+      if(controller===myController){
+        controller=null;generating=false;
+        chat.updated=Date.now();
+        persist();renderAll();
       }
-    } finally {
-      if (controller === myController) { controller = null; generating = false; }
-      chat.updated = Date.now();
-      persist(); renderAll();
     }
   }
   function send() {
@@ -463,6 +576,7 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
   }
   function openPreferences(showModels) {
     els.instructions.value = instructions;
+    $('auto-model-fallback').checked = autoFallback;
     const modelGuide = $('model-guide');
     if (showModels) modelGuide.open = true;
     els.settings.showModal();
@@ -491,7 +605,9 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     $('open-settings').addEventListener('click',()=>openPreferences(false));
     $('settings-form').addEventListener('submit',e=>{
       if (e.submitter?.value !== 'save') return;
-      instructions=els.instructions.value.trim().slice(0,1200);persist();showToast('Preferences saved.');
+      instructions=els.instructions.value.trim().slice(0,1200);
+      autoFallback=$('auto-model-fallback').checked;
+      persist();showToast('Preferences saved.');
     });
     $('export-chat').addEventListener('click',exportChat);
     els.messages.addEventListener('click',event=>{

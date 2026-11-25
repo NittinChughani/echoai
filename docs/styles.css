@@ -70,3 +70,16 @@
 .model-guide-tag{font-size:10px;font-weight:700;padding:3px 7px;border-radius:99px;color:var(--primary);background:color-mix(in srgb,var(--accent) 13%,transparent);margin-left:4px}
 .model-guide-footnote{font-size:11px;line-height:1.6;color:var(--muted);margin:13px 0 0}
 @media(max-width:460px){.theme-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.theme-option-body{min-height:96px}.model-guide summary{flex-wrap:wrap}}
+
+/* Smart recovery: minimal, theme-aware conversation status and preferences. */
+.reply-mode{display:inline-block;font-size:10px;font-weight:600;color:var(--muted);margin-left:8px;border:1px solid var(--stroke);border-radius:99px;padding:2px 7px;vertical-align:middle}
+.reply-mode.fallback-mode{color:var(--primary);border-color:var(--stroke2);background:var(--panel2)}
+.recovery-progress{display:inline-block;margin-left:10px;color:var(--muted);font-size:12px;vertical-align:middle}
+.interrupted-note{margin-top:12px;font-size:12px;color:var(--muted);border-left:2px solid var(--accent);padding:5px 9px}
+.retry-response{color:var(--primary);border:1px solid var(--stroke2);border-radius:8px;padding:6px 10px;background:var(--panel2)}
+.retry-response:hover{border-color:var(--accent)}
+.recovery-setting{display:flex;justify-content:space-between;align-items:center;gap:16px;border:1px solid var(--stroke2);border-radius:12px;background:var(--panel2);padding:13px 14px;margin:0 0 22px;cursor:pointer}
+.recovery-setting span{display:flex;flex-direction:column;gap:5px;min-width:0}
+.recovery-setting strong{font-size:12px;color:var(--text)}
+.recovery-setting small{font-size:11px;color:var(--muted);line-height:1.6}
+.recovery-setting input{width:18px;height:18px;accent-color:var(--accent2);flex-shrink:0;cursor:pointer}

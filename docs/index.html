@@ -10,9 +10,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=recovery-1">
   <script src="./config.js"></script>
-  <script defer src="./app.js"></script>
+  <script defer src="./app.js?v=recovery-1"></script>
 </head>
 <body>
   <svg xmlns="http://www.w3.org/2000/svg" class="svg-defs" aria-hidden="true">
@@ -141,9 +141,10 @@
         <div class="model-guide-body">
           <div class="model-guide-row"><strong>ECHO Quick <span class="model-guide-tag">Everyday</span></strong><p>Great for simple questions, quick explanations and short drafts. It is intended as the lighter option.</p><small>Current provider model: <code id="quick-model-name">gpt-oss-20b</code></small></div>
           <div class="model-guide-row"><strong>ECHO Balanced <span class="model-guide-tag">More depth</span></strong><p>Good for longer explanations, coding questions and more involved tasks. Response speed and quality depend on the provider and the question.</p><small>Current provider model: <code id="balanced-model-name">Meta-Llama-3_3-70B-Instruct</code></small></div>
-          <p class="model-guide-footnote">Quick and Balanced are ECHO's names for different third-party hosted AI models, not models created or trained by ECHO's developer. Switching changes which model handles your next message.</p>
+          <p class="model-guide-footnote">Quick and Balanced are ECHO's names for different third-party hosted AI models, not models created or trained by ECHO's developer. Switching changes which model handles your next message. If automatic fallback is enabled, a temporary connection failure may use the other mode; ECHO labels the model used.</p>
         </div>
       </details>
+      <label class="recovery-setting" for="auto-model-fallback"><span><strong>Automatic model fallback</strong><small>If a temporary connection failure persists, ECHO can try the other model. Your selected mode stays unchanged. Usage limits are respected.</small></span><input type="checkbox" id="auto-model-fallback" checked></label>
       <label class="setting-label" for="instructions-input">How should ECHO respond?</label>
       <textarea id="instructions-input" maxlength="1200" rows="5" placeholder="Example: Explain things step by step and give code examples when useful."></textarea>
       <div class="settings-tip"><svg><use href="#i-shield"/></svg><span>Conversations are stored in this browser. Your prompts are sent to the AI provider to generate answers; avoid sharing sensitive personal information.</span></div>
