@@ -41,7 +41,7 @@
             try{const c=await F.canvasFor(f,f.units[0]);const text=await F.ocr(c,'eng',s=>{if(token===generation)$('file-status').textContent=s;});f.units[0].text=text.slice(0,150000);f.units[0].ocr=true;f.note=text?'Image text extracted locally. Full scene understanding requires vision support.':'No text recognized. Open Lens to crop and retry; full visual understanding is unavailable.';}
             catch(e){f.note='Image OCR unavailable: '+(e.message||'try again in Lens');}
           }else if(F.images.has(f.type)&&visionReady){
-            const c=await F.canvasFor(f,f.units[0]);f.units[0].visualData=c.toDataURL('image/jpeg',0.72);
+            const c=await F.canvasFor(f,f.units[0]);try{f.units[0].visualData=F.encodeImage(c);}catch(e){f.note=e.message;}
           }
           if(token!==generation){dispose(f);return;}
           items.push(f);
@@ -50,7 +50,7 @@
     }finally{if(token===generation){setBusy(false,errors.join(' · '));if(errors.length)notify(errors[0]);if(items.length)$('attachment-panel').hidden=false;}}
   }
   function remove(f){if(busy||hooks.isGenerating())return;const i=items.indexOf(f);if(i<0)return;items.splice(i,1);dispose(f);if(current?.f===f){current=null;canvas=null;rect=null;}$('file-status').textContent='';render();hooks.change();}
-  function clear(){if(busy||hooks.isGenerating())return;items.forEach(dispose);items.splice(0);current=null;canvas=null;rect=null;render();hooks.change();}
+  function clear(){if(busy||hooks.isGenerating())return;items.forEach(dispose);items.splice(0);current=null;canvas=null;rect=null;$('file-status').textContent='';render();hooks.change();}
   function render(){
     const strip=$('attachment-list'),smart=$('file-actions'),panel=$('attachment-panel');
     strip.replaceChildren();smart.replaceChildren();panel.hidden=!items.length&&!busy&&!$('file-status').textContent;
@@ -84,7 +84,7 @@
   function open(f){if(busy||hooks.isGenerating()||!f)return;if(!$('file-workspace').open)$('file-workspace').showModal();selectFile(f);}
   let viewToken=0;
   async function showUnit(f,u){
-    current={f,u};const token=++viewToken;canvas=null;rect=null;dragStart=null;
+    current={f,u};const token=++viewToken;canvas=null;rect=null;dragStart=null;updateCrop();
     $('lens-title').textContent=f.name+' · '+u.label;
     $('lens-text').value=u.selection||u.text;
     $('lens-text').placeholder='No extracted text. Use OCR on a visual page.';
@@ -112,7 +112,7 @@
       if(!text)throw Error('No readable text recognized in this area.');
       if(rect)u.selection=text.slice(0,MAX_CONTEXT_SELECTION);else{u.text=text.slice(0,150000);delete u.selection;}
       u.ocr=true;u.selected=true;delete u.visualData;
-      if(view===viewToken){$('lens-text').value=u.selection||u.text;$('lens-status').textContent='OCR text ready. Verify it before sending.';}
+      if(view===viewToken){$('lens-text').value=u.selection||u.text;$('lens-use-text').disabled=false;$('lens-status').textContent='OCR text ready. Verify it before sending.';}
     }catch(e){if(view===viewToken)$('lens-status').textContent=e.message||'OCR failed.';}
     finally{if(token===generation){$('lens-ocr').disabled=false;setBusy(false);}}
   }
@@ -124,17 +124,14 @@
   }
   function useImage(){
     if(!current||!canvas||!visionReady)return;
+    let data;try{data=F.encodeImage(F.cropCanvas(canvas,rect));}catch(e){$('lens-status').textContent=e.message;return;}
     for(const f of items)for(const u of f.units)delete u.visualData;
-    const c=F.cropCanvas(canvas,rect);
-    let quality=.75,data=c.toDataURL('image/jpeg',quality);
-    while(data.length>500000&&quality>.25){quality-=.15;data=c.toDataURL('image/jpeg',quality);}
-    if(data.length>500000)return notify('Select a smaller region.');
     current.u.visualData=data;current.u.selected=true;render();$('lens-status').textContent='Selected image will be included in the next AI request.';
   }
   function resetUnit(){if(!current)return;delete current.u.selection;delete current.u.visualData;rect=null;updateCrop();$('lens-text').value=current.u.text;render();$('lens-status').textContent='Using the full extracted section.';}
   function previewPacket(){
     const p=F.buildPacket(items,hooks.getPrompt(),visionReady);$('source-title').textContent='Focus · exact excerpt preview';$('source-text').textContent=p.sources.length?p.sources.map(s=>'['+s.id+'] '+s.name+' / '+s.label+'\n'+s.text).join('\n\n'):'No extracted text selected.';
-    $('source-meta').textContent=(p.image?'One image will also be sent. ':'')+'These are the excerpts for the current draft; editing your question may change relevance ranking.';
+    $('source-meta').textContent=(p.image?'One selected image will also be sent. ':'')+(p.visualCount>1?'Choose one visual selection before sending. ':'')+(p.unreadable.length?'Unreadable selected files: '+p.unreadable.join(', ')+'. ':'')+'These are the excerpts for the current draft; editing your question may change relevance ranking.';
     if(!$('source-dialog').open)$('source-dialog').showModal();
   }
   function source(s){$('source-title').textContent=s.name+' · '+s.label;$('source-text').textContent=s.text;$('source-meta').textContent=(s.ocr?'OCR text; verify against the original. ':'')+'This exact excerpt was supplied to the AI. A matching source ID does not prove that the AI interpreted it correctly.';$('source-dialog').showModal();}
@@ -187,6 +184,8 @@
     if(!items.length)return null;
     const p=F.buildPacket(items,question,visionReady);
     if(!p.selectedCount)throw Error('Select at least one file section in ECHO Focus, or remove the files.');
+    if(p.visualCount>1)throw Error('Choose one image in Lens per request; use OCR for other images or deselect them.');
+    if(p.unreadable.length)throw Error('No readable selected content in '+p.unreadable[0]+'. Use Lens OCR, select a supported image, or deselect that file.');
     if(!p.sources.length&&!p.image)throw Error('No readable text or supported image selected. Open Lens to extract text or remove the file.');
     return p;
   }

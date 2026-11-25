@@ -57,7 +57,7 @@ Attach up to four files (12 MB each) with the paperclip, drag and drop, or paste
 
 Files and source snapshots remain in memory for the current page session; chat answers and attachment names remain in local chat history. While active, selected excerpts may be sent with subsequent messages. Clear/remove files to stop including them. Refreshing loses file contents and source previews. Reattach for later file analysis. Document extraction depends on the browser and CDN availability; OCR and scanned documents may require manual region selection.
 
-**Vision deployment:** the existing production Worker accepts text. Local OCR works with it. The updated Worker source adds a capability flag and a bounded single-image multimodal request using the Balanced model. To enable actual scene/diagram analysis, deploy the updated `cloudflare/worker.js` to the existing Worker, then test image inference. The website automatically checks `/api/health`; it sends image pixels only if the new Worker reports vision support. Vision inference must be verified live, and remains subject to provider availability and quotas.
+**Vision deployment:** the existing production Worker accepts text. Local OCR works with it. The updated Worker source adds a capability flag and a bounded single-image multimodal request using the Balanced model. To enable actual scene/diagram analysis, deploy the updated `cloudflare/worker.js` to the existing Worker, then test image inference. The website automatically checks `/api/health`; it sends image pixels only if the new Worker reports vision support. A request can contain one selected image, and unreadable selected files must be deselected or processed with OCR before sending. Vision inference must be verified live, and remains subject to provider availability and quotas.
 
 ### Choose your AI mode
 
@@ -94,6 +94,10 @@ The production configuration uses **Cloudflare Workers AI**. The website retries
 | AI inference | Cloudflare Workers AI (ECHO Quick and ECHO Balanced) |
 | Backend | Cloudflare Worker |
 | Chat storage | Browser `localStorage` |
+
+## Development checks
+
+Run `node --test tests/file-engine.test.cjs` with Node.js 20+ for deterministic checks of text ingestion, file selection, context limits, source IDs and workflows. These checks do not exercise browser-only parsing libraries or live AI inference.
 
 ## Run your own copy
 

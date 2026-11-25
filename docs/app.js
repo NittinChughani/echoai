@@ -486,7 +486,7 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     const preference=instructions;
     const allowFallback=useCloudflare&&autoFallback&&!packet?.image;
     const deadline=Date.now()+TOTAL_RESPONSE_MS;
-    const target={role:'assistant',content:'',status:'loading',requestedMode,sources:packet?.sources||[]};
+    const target={role:'assistant',content:'',status:'loading',requestedMode,sources:packet?.sources||[],...(packet?.image?{progress:'Analyzing selected image with ECHO Balanced…'}:{})};
     const requestMessages=chat.messages.filter(m=>m.role==='user'||(m.role==='assistant'&&m.status==='done'))
       .slice(-14).map(m=>({role:m.role,content:m.content.slice(0,6500)}));
     if(packet&&requestMessages.length)requestMessages.at(-1).content=packet.prompt;
@@ -551,7 +551,7 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     void requestAnswer(chat);
   }
   function regenerateAnswer() {
-    if (generating) return;
+    if (generating||workspace.isBusy()) return;
     const chat = activeChat();
     if (!chat) return;
     const lastUser=chat.messages.at(-1)?.role==='assistant'?chat.messages.at(-2):chat.messages.at(-1);
