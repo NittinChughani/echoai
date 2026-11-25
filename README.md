@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Ideas start here.</strong><br/>
-  A free, no-signup AI and file workspace with two assistant modes, saved conversations, six themes, and local document tools.
+  A free, no-signup AI and file workspace with two assistant modes, saved conversations, Dark/Light appearance, and local document tools.
 </p>
 
 <p align="center">
@@ -38,7 +38,7 @@ It's a real web project built with HTML, CSS, and vanilla JavaScript, hosted on 
 | A focused chat experience | Tools that make it useful |
 | :--- | :--- |
 | **Instant access** — start chatting without signing up | **Conversation history** — revisit chats saved in your browser |
-| **Six color themes** — choose Midnight, Pearl, Ocean, Forest, Ember, or Lavender | **Chat search** — locate earlier conversations |
+| **Dark / Light mode** — switch instantly from the top bar | **Chat search** — locate earlier conversations |
 | **Responsive layout** — use it on desktop or mobile | **Copy & regenerate** — make responses easier to reuse |
 | **Streaming replies** — watch responses arrive as they are generated | **Custom instructions** — personalize response style |
 | **Two AI modes** — ECHO Quick and ECHO Balanced | **Markdown export** — take a conversation with you |
@@ -48,7 +48,7 @@ It's a real web project built with HTML, CSS, and vanilla JavaScript, hosted on 
 
 Attach up to four files (12 MB each) with the paperclip, drag and drop, or paste an image. PDFs, DOCX, PPTX, XLSX, CSV, common code/text formats, PNG, JPG and WEBP are supported. Files are parsed locally using PDF.js, JSZip and Tesseract.js loaded on demand from version-pinned CDN URLs; files are not uploaded to a storage service.
 
-- **Attach:** previews and removable active files, with session-only file data.
+- **Attach:** previews and removable active files, with session-only file data. The workspace starts minimized; expand the compact attachment row to access file tools. Minimizing preserves attachments and selected context.
 - **Lens:** local PDF/image preview, highlighted text, region selection, and optional OCR (English, Urdu, Hindi). OCR can be inaccurate; it is not object or diagram understanding.
 - **Trace:** clickable source IDs matched against the exact supplied excerpts, not a guarantee of factual entailment.
 - **Transform & Compare:** suggested tasks for summaries, flashcards, study guides, code, tables, and comparing up to four files.
@@ -70,7 +70,7 @@ These are the **website's mode names**, not proprietary models developed by the 
 
 ### Customize your workspace
 
-Six themes are included: **Midnight, Pearl, Ocean, Forest, Ember and Lavender**. You can switch themes, manage chat history, search conversations, set custom instructions and export chats to Markdown. Preferences and saved chats remain in this browser.
+Use the top-bar switch to choose **Dark or Light mode**. Your choice is saved automatically. Manage chat history, search conversations, set custom instructions and export chats to Markdown. Preferences and saved chats remain in this browser.
 
 ## <a id="how-it-works"></a>How it works
 

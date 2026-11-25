@@ -36,7 +36,7 @@ ECHO MODELS — identity and accurate explanation:
 - Switching between Quick and Balanced changes which hosted model handles the next reply. Both are available without a visitor account, subject to provider limits.
 - If asked which ECHO mode you are currently using, use the current mode supplied in the system message. Don't invent a model name, training claim, or guaranteed performance.
 Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do not claim to browse the web or access tools or files.`;
-  const THEMES = Object.freeze([{id:'dark',label:'Midnight',meta:'#0c0b12'},{id:'light',label:'Pearl',meta:'#f7f6fa'},{id:'ocean',label:'Ocean',meta:'#071723'},{id:'forest',label:'Forest',meta:'#0b1815'},{id:'ember',label:'Ember',meta:'#201412'},{id:'lavender',label:'Lavender',meta:'#f6f1ff'}]);
+  const THEMES = Object.freeze({dark:{label:'Dark',meta:'#0c0b12'},light:{label:'Light',meta:'#f7f6fa'}});
   const isValidApi = /^https:\/\/[^\s/?#]+(?:\:\d+)?$/.test(configuredApi);
   const apiUrl = (route) => configuredApi + route;
 
@@ -82,7 +82,8 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
           .slice(-55).map(m => ({ role: m.role, content: m.content.slice(0, 6500), status: 'done', ...(m.role === 'assistant' && Object.hasOwn(MODE_LABEL,m.actualMode) ? {actualMode:m.actualMode, requestedMode:Object.hasOwn(MODE_LABEL,m.requestedMode)?m.requestedMode:m.actualMode} : {}), ...(m.role === 'assistant' && m.interrupted === true ? {interrupted:true} : {}), ...(m.role==='user'&&Array.isArray(m.fileNames)?{fileNames:m.fileNames.filter(x=>typeof x==='string').slice(0,4).map(x=>x.slice(0,160))}:{}) }))
       }));
     const prefs = readJson(PREF_KEY, {});
-    if (THEMES.some(option => option.id === prefs.theme)) theme = prefs.theme;
+    // Migrate legacy appearance settings into the two supported modes.
+    theme = prefs.theme === 'light' || prefs.theme === 'lavender' ? 'light' : 'dark';
     if (prefs.model === 'quick') model = 'quick';
     autoFallback = prefs.autoFallback !== false;
     $('auto-model-fallback').checked = autoFallback;
@@ -157,25 +158,20 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
   }
 
   function applyTheme() {
-    const chosen = THEMES.find(option => option.id === theme) || THEMES[0];
-    document.documentElement.dataset.theme = chosen.id;
-    document.querySelector('#theme-toggle use').setAttribute('href', ['light','lavender'].includes(chosen.id) ? '#i-moon' : '#i-sun');
+    const chosen = THEMES[theme] || THEMES.dark;
+    const dark=theme==='dark';
+    document.documentElement.dataset.theme = dark?'dark':'light';
     document.querySelector('meta[name="theme-color"]').content = chosen.meta;
-    els.theme.title = 'Current: ' + chosen.label + ' · click to cycle themes';
-    els.theme.setAttribute('aria-label', 'Change theme. Current theme: ' + chosen.label);
-    document.querySelectorAll('input[name="theme-choice"]').forEach(input => { input.checked = input.value === chosen.id; });
+    els.theme.setAttribute('aria-checked',String(dark));
+    els.theme.title = dark?'Switch to Light mode':'Switch to Dark mode';
   }
   function setTheme(nextTheme) {
-    if (!THEMES.some(option => option.id === nextTheme)) return;
+    if (!Object.hasOwn(THEMES,nextTheme)) return;
     theme = nextTheme;
     applyTheme();
     persist();
-    showToast(THEMES.find(option => option.id === theme).label + ' theme applied');
   }
-  function toggleTheme() {
-    const index = THEMES.findIndex(option => option.id === theme);
-    setTheme(THEMES[(index + 1) % THEMES.length].id);
-  }
+  function toggleTheme() { setTheme(theme==='dark'?'light':'dark'); }
   function closeSidebar() { els.sidebar.classList.remove('open'); els.scrim.hidden = true; }
   function openSidebar() { els.sidebar.classList.add('open'); els.scrim.hidden = false; }
   function startNewChat() {
@@ -617,7 +613,6 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     });
     els.model.addEventListener('change',()=>{model=els.model.value;persist();});
     els.theme.addEventListener('click',toggleTheme);
-    document.querySelectorAll('input[name="theme-choice"]').forEach(input => input.addEventListener('change',()=>{ if(input.checked) setTheme(input.value); }));
     $('model-info').addEventListener('click',()=>{ openPreferences(true); });
     document.querySelectorAll('[data-prompt]').forEach(button=>button.addEventListener('click',()=>{
       els.input.value=button.dataset.prompt;resizeInput();updateSend();send();

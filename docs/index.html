@@ -4,17 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0c0b12">
-  <meta name="description" content="ECHO AI is a free, no-signup chatbot with Quick and Balanced AI modes, six customizable themes, local chat history, search and custom instructions.">
+  <meta name="description" content="ECHO AI is a free, no-signup chatbot with Quick and Balanced AI modes, Dark and Light modes, local chat history, search and custom instructions.">
   <title>ECHO — Ideas start here</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=file-workspace-1">
+  <link rel="stylesheet" href="./styles.css?v=compact-workspace-1">
   <script src="./config.js"></script>
   <script defer src="./file-engine.js?v=2"></script>
-  <script defer src="./file-workspace.js?v=2"></script>
-  <script defer src="./app.js?v=file-workspace-2"></script>
+  <script defer src="./file-workspace.js?v=compact-workspace-1"></script>
+  <script defer src="./app.js?v=compact-workspace-1"></script>
 </head>
 <body>
   <svg xmlns="http://www.w3.org/2000/svg" class="svg-defs" aria-hidden="true">
@@ -82,7 +82,7 @@
         </div>
         <div class="topbar-actions">
           <div class="presence-pill" title="Powered by hosted open-weight models"><span class="presence-light"></span> Free cloud AI</div>
-          <button class="icon-btn theme-button" id="theme-toggle" title="Cycle color theme" aria-label="Change color theme"><svg><use href="#i-sun"/></svg></button>
+          <button type="button" class="appearance-switch" id="theme-toggle" role="switch" aria-checked="true" title="Switch between Dark and Light mode" aria-label="Dark mode"><svg class="appearance-sun" aria-hidden="true"><use href="#i-sun"/></svg><span class="appearance-thumb" aria-hidden="true"></span><svg class="appearance-moon" aria-hidden="true"><use href="#i-moon"/></svg></button>
           <span class="guest-pill"><span class="guest-avatar">G</span><span>Guest</span><span class="guest-check">✓</span></span>
         </div>
       </header>
@@ -109,11 +109,19 @@
           <div class="composer" id="composer">
             <input type="file" id="file-input" multiple hidden aria-label="Attach files">
             <div id="attachment-panel" class="attachment-panel" hidden>
-              <div class="attachment-heading"><span>ATTACHED WORKSPACE</span><button type="button" id="file-workspace-button" class="file-small-btn">Lens &amp; Focus</button><button type="button" id="clear-files" class="file-small-btn">Clear</button></div>
-              <div id="attachment-list" class="attachment-list"></div>
-              <div id="file-actions" class="file-actions"></div>
-              <p class="file-privacy">Files are processed on your device. Selected excerpts or images are sent when you send a message. Files stay available for this session.</p>
-              <p id="file-status" class="file-status" role="status" aria-live="polite"></p>
+              <div class="attachment-heading">
+                <button type="button" id="workspace-toggle" class="workspace-summary" aria-expanded="false" aria-controls="attachment-details" title="Expand attached workspace">
+                  <svg class="workspace-summary-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5 12 20.5a5 5 0 0 1-7-7L15 3.5a3.5 3.5 0 0 1 5 5L9.5 19a2 2 0 0 1-3-3l9-9"/></svg>
+                  <span id="workspace-count">File workspace</span><span id="workspace-state" class="workspace-state"></span><span class="workspace-expand-label" id="workspace-toggle-label">Expand</span><svg class="workspace-chevron" aria-hidden="true"><use href="#i-chevron-down"/></svg>
+                </button>
+              </div>
+              <div id="attachment-details" hidden>
+                <div class="workspace-detail-tools"><button type="button" id="file-workspace-button" class="file-small-btn">Lens &amp; Focus</button><button type="button" id="clear-files" class="file-small-btn">Clear files</button></div>
+                <div id="attachment-list" class="attachment-list"></div>
+                <div id="file-actions" class="file-actions"></div>
+                <p class="file-privacy">Files are processed on your device. Selected excerpts or images are sent when you send a message. Files stay available for this session.</p>
+              </div>
+              <p id="file-status" class="file-status" role="status" aria-live="polite" hidden></p>
             </div>
             <label class="sr-only" for="message-input">Message ECHO</label>
             <textarea id="message-input" placeholder="Ask ECHO anything..." rows="1" maxlength="6500" spellcheck="true"></textarea>
@@ -136,17 +144,6 @@
     <form method="dialog" id="settings-form">
       <div class="dialog-heading"><span><span class="dialog-kicker">PERSONALIZE YOUR SPACE</span><strong id="settings-heading">Preferences</strong></span><button class="icon-btn" value="cancel" aria-label="Close preferences"><svg><use href="#i-x"/></svg></button></div>
       <p class="dialog-intro">Make ECHO feel like your kind of workspace. Saved only in this browser.</p>
-      <div class="theme-preferences">
-        <div class="setting-heading-row"><span class="setting-label">Choose your theme</span><small>Instant preview · saved automatically</small></div>
-        <div class="theme-grid" role="group" aria-label="ECHO appearance themes">
-          <label class="theme-option"><input type="radio" name="theme-choice" value="dark"><span class="theme-option-body"><span class="theme-swatch swatch-midnight"></span><strong>Midnight</strong><small>Signature dark</small></span></label>
-          <label class="theme-option"><input type="radio" name="theme-choice" value="light"><span class="theme-option-body"><span class="theme-swatch swatch-pearl"></span><strong>Pearl</strong><small>Clean & bright</small></span></label>
-          <label class="theme-option"><input type="radio" name="theme-choice" value="ocean"><span class="theme-option-body"><span class="theme-swatch swatch-ocean"></span><strong>Ocean</strong><small>Deep blue</small></span></label>
-          <label class="theme-option"><input type="radio" name="theme-choice" value="forest"><span class="theme-option-body"><span class="theme-swatch swatch-forest"></span><strong>Forest</strong><small>Quiet green</small></span></label>
-          <label class="theme-option"><input type="radio" name="theme-choice" value="ember"><span class="theme-option-body"><span class="theme-swatch swatch-ember"></span><strong>Ember</strong><small>Warm & cozy</small></span></label>
-          <label class="theme-option"><input type="radio" name="theme-choice" value="lavender"><span class="theme-option-body"><span class="theme-swatch swatch-lavender"></span><strong>Lavender</strong><small>Soft pastel</small></span></label>
-        </div>
-      </div>
       <details class="model-guide" id="model-guide">
         <summary>Which ECHO model should I use?<span>Quick vs Balanced</span></summary>
         <div class="model-guide-body">
@@ -163,7 +160,7 @@
     </form>
   </dialog>
   <dialog id="file-workspace" class="file-dialog" aria-labelledby="workspace-heading">
-    <div class="file-dialog-head"><div><span class="file-kicker">ECHO FILE INTELLIGENCE</span><h2 id="workspace-heading">Lens &amp; Focus</h2><p>Choose exactly what ECHO can read. Your original files stay on this device.</p></div><form method="dialog"><button class="file-close" aria-label="Close file workspace">×</button></form></div>
+    <div class="file-dialog-head"><div><span class="file-kicker">ECHO FILE INTELLIGENCE</span><h2 id="workspace-heading">Lens &amp; Focus</h2><p>Choose exactly what ECHO can read. Your original files stay on this device.</p></div><form method="dialog"><button class="file-close workspace-minimize" id="workspace-minimize" type="button" aria-label="Minimize file workspace" title="Minimize file workspace"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button></form></div>
     <div class="workspace-layout">
       <aside class="workspace-nav"><strong>Files</strong><div id="workspace-files"></div><p id="workspace-note" class="workspace-muted"></p><div class="focus-heading"><strong>Include sections</strong><button type="button" id="focus-all" class="file-small-btn">All</button><button type="button" id="focus-none" class="file-small-btn">None</button></div><div id="unit-list"></div></aside>
       <section class="workspace-preview"><strong id="lens-title">Preview</strong><p id="vision-state" class="workspace-muted">Image OCR available · full visual understanding not enabled</p>

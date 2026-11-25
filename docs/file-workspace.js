@@ -4,6 +4,9 @@
   const F=window.EchoFiles,$=id=>document.getElementById(id);
   let hooks,items=[],busy=false,generation=0,visionReady=false,current=null,canvas=null,rect=null,dragStart=null;
   const libraryByChat=new Map();let activeKey='draft';
+  // Keep the composer compact unless the visitor explicitly opens file controls.
+  let expanded=false;
+  function setExpanded(value){expanded=Boolean(value);render();}
   const replayKey='echo-replay-v1';
   let workflows=[];try{const data=JSON.parse(localStorage.getItem(replayKey)||'[]');if(Array.isArray(data))workflows=data.filter(F.validWorkflow).slice(0,30);}catch{}
   const button=(label,fn,cls='file-small-btn')=>{const b=document.createElement('button');b.type='button';b.className=cls;b.textContent=label;b.addEventListener('click',fn);return b;};
@@ -16,17 +19,18 @@
   function switchChat(id){
     const key=id||'draft';if(key===activeKey)return;
     generation++;busy=false;libraryByChat.set(activeKey,items);
-    activeKey=key;items=libraryByChat.get(key)||[];current=null;canvas=null;rect=null;
+    activeKey=key;items=libraryByChat.get(key)||[];current=null;canvas=null;rect=null;expanded=false;
     if($('file-workspace').open)$('file-workspace').close();
     $('file-status').textContent='';render();
   }
   function adopt(id){if(activeKey==='draft'){libraryByChat.delete('draft');activeKey=id;libraryByChat.set(id,items);}}
-  function forget(id){const list=libraryByChat.get(id)||[];list.forEach(dispose);libraryByChat.delete(id);if(id===activeKey){items=[];generation++;busy=false;render();}}
-  function fresh(){const list=libraryByChat.get('draft')||[];list.forEach(dispose);libraryByChat.delete('draft');if(activeKey==='draft'){items=[];generation++;busy=false;current=null;render();}else switchChat(null);}
+  function forget(id){const list=libraryByChat.get(id)||[];list.forEach(dispose);libraryByChat.delete(id);if(id===activeKey){items=[];generation++;busy=false;expanded=false;$('file-status').textContent='';render();}}
+  function fresh(){const list=libraryByChat.get('draft')||[];list.forEach(dispose);libraryByChat.delete('draft');if(activeKey==='draft'){items=[];generation++;busy=false;current=null;expanded=false;$('file-status').textContent='';render();}else switchChat(null);}
   async function addFiles(list){
     if(busy||hooks.isGenerating())return;
     const remaining=F.MAX_FILES-items.length;if(remaining<=0)return notify('Maximum four active files per conversation.');
     const files=Array.from(list).slice(0,remaining);if(!files.length)return;
+    if(!items.length)expanded=false;
     const token=++generation;setBusy(true,'Reading files on your device…');
     let errors=[];
     try{
@@ -47,14 +51,28 @@
           items.push(f);
         }catch(e){if(f)dispose(f);errors.push(file.name+': '+(e.message||'Could not read file.'));}
       }
-    }finally{if(token===generation){setBusy(false,errors.join(' · '));if(errors.length)notify(errors[0]);if(items.length)$('attachment-panel').hidden=false;}}
+    }finally{if(token===generation){setBusy(false,errors.join(' · '));if(errors.length)notify(errors[0]);}}
   }
   function remove(f){if(busy||hooks.isGenerating())return;const i=items.indexOf(f);if(i<0)return;items.splice(i,1);dispose(f);if(current?.f===f){current=null;canvas=null;rect=null;}$('file-status').textContent='';render();hooks.change();}
-  function clear(){if(busy||hooks.isGenerating())return;items.forEach(dispose);items.splice(0);current=null;canvas=null;rect=null;$('file-status').textContent='';render();hooks.change();}
+  function clear(){if(busy||hooks.isGenerating())return;items.forEach(dispose);items.splice(0);current=null;canvas=null;rect=null;expanded=false;$('file-status').textContent='';render();hooks.change();}
   function render(){
     const strip=$('attachment-list'),smart=$('file-actions'),panel=$('attachment-panel');
-    strip.replaceChildren();smart.replaceChildren();panel.hidden=!items.length&&!busy&&!$('file-status').textContent;
+    const status=$('file-status');
+    strip.replaceChildren();smart.replaceChildren();panel.hidden=!items.length&&!busy&&!status.textContent;
+    if(panel.hidden)expanded=false;
+    const toggle=$('workspace-toggle');
+    $('attachment-details').hidden=!expanded;
+    panel.classList.toggle('is-expanded',expanded);
+    toggle.setAttribute('aria-expanded',String(expanded));
+    toggle.title=expanded?'Minimize attached workspace':'Expand attached workspace';
+    $('workspace-toggle-label').textContent=expanded?'Minimize':'Expand';
+    const total=items.reduce((n,f)=>n+f.units.filter(u=>u.selected).length,0);
+    $('workspace-count').textContent=items.length?items.length+(items.length===1?' file attached':' files attached'):'File workspace';
+    $('workspace-state').textContent=busy?'Processing…':items.length?total+' selected':status.textContent?'File notice':'';
+    status.hidden=!status.textContent;
+    status.title=status.textContent;
     $('attach-button').disabled=busy||hooks?.isGenerating();$('file-workspace-button').disabled=busy||!items.length||hooks?.isGenerating();
+    $('clear-files').disabled=busy||!items.length||hooks?.isGenerating();
     for(const f of items){
       const chip=el('div','attachment-chip');const label=button(f.name,()=>open(f),'attachment-name');label.title=f.name+' · '+size(f.size);
       const count=f.units.filter(u=>u.selected).length;const meta=el('small','',f.type.toUpperCase()+' · '+count+'/'+f.units.length+' selected');
@@ -81,7 +99,7 @@
     const packet=F.buildPacket(items,hooks.getPrompt(),visionReady);$('focus-budget').textContent=packet.sources.length+' excerpts · '+packet.prompt.length+' characters · '+packet.selectedCount+' selected sections'+(packet.image?' · 1 image':'')+(packet.limited?' · relevant excerpts only':'');
   }
   function selectFile(f){if(!items.includes(f))return;void showUnit(f,f.units[0]);}
-  function open(f){if(busy||hooks.isGenerating()||!f)return;if(!$('file-workspace').open)$('file-workspace').showModal();selectFile(f);}
+  function open(f){if(busy||hooks.isGenerating()||!f)return;if(!$('file-workspace').open)$('file-workspace').showModal();if(current?.f===f&&current.u)void showUnit(f,current.u);else selectFile(f);}
   let viewToken=0;
   async function showUnit(f,u){
     current={f,u};const token=++viewToken;canvas=null;rect=null;dragStart=null;updateCrop();
@@ -156,7 +174,9 @@
     hooks=h;$('file-input').accept=F.accept;
     $('attach-button').addEventListener('click',()=>$('file-input').click());
     $('file-input').addEventListener('change',e=>{void addFiles(e.target.files);e.target.value='';});
-    $('file-workspace-button').addEventListener('click',()=>open(items[0]));
+    $('workspace-toggle').addEventListener('click',()=>setExpanded(!expanded));
+    $('workspace-minimize').addEventListener('click',()=>{$('file-workspace').close();setExpanded(false);$('workspace-toggle').focus();});
+    $('file-workspace-button').addEventListener('click',()=>open(current?.f&&items.includes(current.f)?current.f:items[0]));
     $('clear-files').addEventListener('click',clear);
     $('replay-button').addEventListener('click',replay);
     const composer=$('composer');
