@@ -2,6 +2,7 @@
 (() => {
   'use strict';
   const $ = (id) => document.getElementById(id);
+  const workspace=window.EchoWorkspace;
   const els = {
     sidebar: $('sidebar'), scrim: $('sidebar-scrim'), history: $('chat-history'),
     chatCount: $('chat-count'), search: $('search-chats'), title: $('current-title'),
@@ -66,7 +67,7 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
       const data = chats.slice(0, MAX_CHATS).map(c => ({
         id: c.id, title: c.title, updated: c.updated,
         messages: c.messages.filter(m => m.status === 'done' || m.role === 'user').slice(-55)
-          .map(m => ({ role: m.role, content: m.content, ...(m.actualMode ? {actualMode:m.actualMode, requestedMode:m.requestedMode} : {}), ...(m.interrupted ? {interrupted:true} : {}) }))
+          .map(m => ({ role: m.role, content: m.content, ...(m.actualMode ? {actualMode:m.actualMode, requestedMode:m.requestedMode} : {}), ...(m.interrupted ? {interrupted:true} : {}), ...(m.fileNames?.length ? {fileNames:m.fileNames.slice(0,4)} : {}) }))
       }));
       localStorage.setItem(DATA_KEY, JSON.stringify(data));
       localStorage.setItem(PREF_KEY, JSON.stringify({ theme, model, instructions, autoFallback }));
@@ -78,7 +79,7 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
       .slice(0, MAX_CHATS).map(c => ({
         id: c.id, title: c.title.slice(0, 100), updated: Number(c.updated) || Date.now(),
         messages: c.messages.filter(m => ['user', 'assistant'].includes(m?.role) && typeof m.content === 'string')
-          .slice(-55).map(m => ({ role: m.role, content: m.content.slice(0, 6500), status: 'done', ...(m.role === 'assistant' && Object.hasOwn(MODE_LABEL,m.actualMode) ? {actualMode:m.actualMode, requestedMode:Object.hasOwn(MODE_LABEL,m.requestedMode)?m.requestedMode:m.actualMode} : {}), ...(m.role === 'assistant' && m.interrupted === true ? {interrupted:true} : {}) }))
+          .slice(-55).map(m => ({ role: m.role, content: m.content.slice(0, 6500), status: 'done', ...(m.role === 'assistant' && Object.hasOwn(MODE_LABEL,m.actualMode) ? {actualMode:m.actualMode, requestedMode:Object.hasOwn(MODE_LABEL,m.requestedMode)?m.requestedMode:m.actualMode} : {}), ...(m.role === 'assistant' && m.interrupted === true ? {interrupted:true} : {}), ...(m.role==='user'&&Array.isArray(m.fileNames)?{fileNames:m.fileNames.filter(x=>typeof x==='string').slice(0,4).map(x=>x.slice(0,160))}:{}) }))
       }));
     const prefs = readJson(PREF_KEY, {});
     if (THEMES.some(option => option.id === prefs.theme)) theme = prefs.theme;
@@ -180,6 +181,7 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
   function startNewChat() {
     if (generating) stopGeneration();
     activeId = null;
+    workspace.fresh();
     els.input.value = '';
     resizeInput();
     updateSend();
@@ -191,6 +193,7 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     if (!chats.some(c => c.id === id)) return;
     if (generating) stopGeneration();
     activeId = id;
+    workspace.switchChat(id);
     renderAll();
     closeSidebar();
     els.input.focus();
@@ -199,8 +202,9 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     const chat = chats.find(c => c.id === id);
     if (!chat || !window.confirm(`Delete “${chat.title}”? This cannot be undone.`)) return;
     if (activeId === id && generating) stopGeneration();
+    workspace.forget(id);
     chats = chats.filter(c => c.id !== id);
-    if (activeId === id) activeId = null;
+    if (activeId === id) {activeId = null;workspace.switchChat(null);}
     persist(); renderAll(); showToast('Conversation deleted.');
   }
   function renderHistory() {
@@ -257,6 +261,12 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
       note.textContent='Response interrupted. The text above has been preserved.';
       content.append(note);
     }
+    if(message.role==='user'&&message.fileNames?.length){
+      const list=document.createElement('div');list.className='sent-file-list';
+      for(const name of message.fileNames){const chip=document.createElement('span');chip.textContent=name;list.append(chip);}
+      content.prepend(list);
+    }
+    if(message.role==='assistant'&&message.status==='done')workspace.renderEvidence(content,message);
     const actions = el.querySelector('.message-actions');
     if (message.content && message.status === 'done') {
       const copy = document.createElement('button'); copy.type='button';copy.className='message-action';copy.innerHTML=icon('copy')+' Copy';
@@ -295,10 +305,11 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     els.input.style.height = Math.min(els.input.scrollHeight, 170) + 'px';
   }
   function updateSend() {
-    els.send.disabled = generating || !els.input.value.trim();
+    els.send.disabled = generating || workspace.isBusy() || (!els.input.value.trim()&&!workspace.hasFiles());
     els.send.hidden = generating;
     els.stop.hidden = !generating;
     els.model.disabled = generating;
+    workspace.render();
   }
   async function copyText(value) {
     try { await navigator.clipboard.writeText(value); showToast('Copied to clipboard.'); }
@@ -397,7 +408,7 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     target.progress=message;
     if (activeId === chat.id) renderMessages();
   }
-  async function performChatAttempt(chat,target,requestMessages,attemptMode,preference,signal,timeoutMs) {
+  async function performChatAttempt(chat,target,requestMessages,attemptMode,preference,signal,timeoutMs,packet) {
     const attemptController = new AbortController();
     let timedOut=false;
     const onAbort=()=>attemptController.abort();
@@ -414,7 +425,7 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
         cloudMessages.unshift(m); contextChars+=m.content.length;
       }
       while(cloudMessages.length&&cloudMessages[0].role!=='user')cloudMessages.shift();
-      const payload = useCloudflare ? {messages:cloudMessages,mode:attemptMode,instructions:preference} : {
+      const payload = useCloudflare ? {messages:cloudMessages,mode:attemptMode,instructions:preference,...(packet?.image?{image:packet.image}:{})} : {
         model:OVH_MODELS[attemptMode]||OVH_MODELS.quick,
         messages:[
           {role:'system',content:AI_SYSTEM+'\nCurrent selected ECHO mode: '+(attemptMode==='quick'?'Quick (gpt-oss-20b)':'Balanced (Meta-Llama-3_3-70B-Instruct)')+(preference?'\nStyle preference: '+preference:'')},
@@ -470,17 +481,20 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     generating=true; controller=new AbortController();
     const myController=controller;
     const signal=myController.signal;
-    const requestedMode=model;
+    const packet=chat.messages.at(-1)?.filePacket;
+    const requestedMode=packet?.image?'balanced':model;
     const preference=instructions;
-    const allowFallback=useCloudflare&&autoFallback;
+    const allowFallback=useCloudflare&&autoFallback&&!packet?.image;
     const deadline=Date.now()+TOTAL_RESPONSE_MS;
-    const target={role:'assistant',content:'',status:'loading',requestedMode};
+    const target={role:'assistant',content:'',status:'loading',requestedMode,sources:packet?.sources||[]};
     const requestMessages=chat.messages.filter(m=>m.role==='user'||(m.role==='assistant'&&m.status==='done'))
       .slice(-14).map(m=>({role:m.role,content:m.content.slice(0,6500)}));
+    if(packet&&requestMessages.length)requestMessages.at(-1).content=packet.prompt;
     chat.messages.push(target);
     renderAll();
     try{
       if(useCloudflare&&!isValidApi)throw new ChatFailure('The website owner must configure the AI backend.');
+      if(packet?.image&&!useCloudflare)throw new ChatFailure('Image vision requires the Cloudflare backend.');
       // At most three attempts: original, same-model retry, optional alternate mode.
       // Never recover automatically from a quota/permission error or after receiving text.
       const attempts=[requestedMode,requestedMode];
@@ -496,7 +510,7 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
         const attemptMode=attempts[i];
         const timeout=Math.min(attemptMode==='quick'?35000:50000,remaining);
         try{
-          await performChatAttempt(chat,target,requestMessages,attemptMode,preference,signal,timeout);
+          await performChatAttempt(chat,target,requestMessages,attemptMode,preference,signal,timeout,packet);
           target.status='done'; target.progress='';
           break;
         }catch(e){
@@ -522,13 +536,16 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     }
   }
   function send() {
-    if (generating) return;
-    const value = els.input.value.trim();
+    if (generating || workspace.isBusy()) return;
+    const value = els.input.value.trim() || (workspace.hasFiles()?'Explain the selected material.':'');
     if (!value) return;
+    let packet;try{packet=workspace.packet(value);}catch(e){showToast(e.message);return;}
+    if(packet && value.length>1400){showToast('File questions are limited to 1,400 characters.');return;}
     const chat = makeChatIfNeeded(value);
+    workspace.adopt(chat.id);
     // Remove a failed answer when the visitor sends a fresh message.
     if (chat.messages.at(-1)?.status === 'error') chat.messages.pop();
-    chat.messages.push({role:'user',content:value,status:'done'});
+    chat.messages.push({role:'user',content:value,status:'done',...(packet?{filePacket:packet,fileNames:packet.names}:{})});
     chat.updated=Date.now();
     els.input.value='';resizeInput();updateSend();persist();
     void requestAnswer(chat);
@@ -537,6 +554,8 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
     if (generating) return;
     const chat = activeChat();
     if (!chat) return;
+    const lastUser=chat.messages.at(-1)?.role==='assistant'?chat.messages.at(-2):chat.messages.at(-1);
+    if(lastUser?.fileNames?.length&&!lastUser.filePacket){showToast('Reattach the original files and send the question again. File data is not saved after refresh.');return;}
     if (chat.messages.at(-1)?.role === 'assistant') chat.messages.pop();
     if (chat.messages.at(-1)?.role !== 'user') return;
     persist();void requestAnswer(chat);
@@ -567,6 +586,7 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
       const res = await fetch(apiUrl('/api/health'),{cache:'no-store'});
       if (!res.ok) throw new Error();
       const status = await res.json();
+      workspace.setVision(status.ready&&status.vision===true);
       if (!status.ready) { els.presence.textContent = 'AI not configured'; els.presence.title = 'The website owner has not enabled AI inference.'; }
       else { els.presence.textContent = 'Cloud AI · Free'; els.presence.title = 'Powered by Cloudflare Workers AI. Shared daily free allowance; availability varies.'; }
     } catch {
@@ -621,5 +641,6 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
   }
   $('quick-model-name').textContent = useCloudflare ? '@cf/meta/llama-3.1-8b-instruct-fast' : OVH_MODELS.quick;
   $('balanced-model-name').textContent = useCloudflare ? '@cf/google/gemma-4-26b-a4b-it' : OVH_MODELS.balanced;
+  workspace.bind({toast:showToast,change:updateSend,isGenerating:()=>generating,getPrompt:()=>els.input.value,prompt:value=>{els.input.value=value;resizeInput();updateSend();els.input.focus();}});
   load();bind();renderAll();resizeInput();void checkHealth();
 })();

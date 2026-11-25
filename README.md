@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Ideas start here.</strong><br/>
-  A free, no-signup AI chat workspace with two assistant modes, saved conversations and six customizable themes.
+  A free, no-signup AI and file workspace with two assistant modes, saved conversations, six themes, and local document tools.
 </p>
 
 <p align="center">
@@ -43,6 +43,21 @@ It's a real web project built with HTML, CSS, and vanilla JavaScript, hosted on 
 | **Streaming replies** — watch responses arrive as they are generated | **Custom instructions** — personalize response style |
 | **Two AI modes** — ECHO Quick and ECHO Balanced | **Markdown export** — take a conversation with you |
 | **Smart recovery** — automatic retry for temporary connection failures | **Optional model fallback** — clearly labeled responses and manual retry |
+
+### ECHO File Intelligence
+
+Attach up to four files (12 MB each) with the paperclip, drag and drop, or paste an image. PDFs, DOCX, PPTX, XLSX, CSV, common code/text formats, PNG, JPG and WEBP are supported. Files are parsed locally using PDF.js, JSZip and Tesseract.js loaded on demand from version-pinned CDN URLs; files are not uploaded to a storage service.
+
+- **Attach:** previews and removable active files, with session-only file data.
+- **Lens:** local PDF/image preview, highlighted text, region selection, and optional OCR (English, Urdu, Hindi). OCR can be inaccurate; it is not object or diagram understanding.
+- **Trace:** clickable source IDs matched against the exact supplied excerpts, not a guarantee of factual entailment.
+- **Transform & Compare:** suggested tasks for summaries, flashcards, study guides, code, tables, and comparing up to four files.
+- **Focus:** select sections/pages/slides/sheets, preview the exact excerpts for a draft. The backend receives a bounded prompt (up to 6,200 characters) and relevance-ranked excerpts; large files are not read in full. PDFs are indexed up to 60 pages; Office and text files have section/character limits. DOCX and PPTX layout and embedded pictures are not extracted; XLSX formulas are not executed.
+- **Replay:** save up to 30 reusable prompt workflows locally; export/import JSON without original files. Saved prompts may contain sensitive information, so review before sharing.
+
+Files and source snapshots remain in memory for the current page session; chat answers and attachment names remain in local chat history. While active, selected excerpts may be sent with subsequent messages. Clear/remove files to stop including them. Refreshing loses file contents and source previews. Reattach for later file analysis. Document extraction depends on the browser and CDN availability; OCR and scanned documents may require manual region selection.
+
+**Vision deployment:** the existing production Worker accepts text. Local OCR works with it. The updated Worker source adds a capability flag and a bounded single-image multimodal request using the Balanced model. To enable actual scene/diagram analysis, deploy the updated `cloudflare/worker.js` to the existing Worker, then test image inference. The website automatically checks `/api/health`; it sends image pixels only if the new Worker reports vision support. Vision inference must be verified live, and remains subject to provider availability and quotas.
 
 ### Choose your AI mode
 
@@ -99,6 +114,8 @@ echoai/
 │   ├── index.html         # Website
 │   ├── styles.css         # Visual design and responsive styling
 │   ├── app.js             # Chat interface and logic
+│   ├── file-engine.js     # Local file parsing and context selection
+│   ├── file-workspace.js  # Attach, Lens, Focus, Trace, Replay interface
 │   ├── config.js          # AI provider configuration
 │   └── favicon.svg        # Website icon
 ├── assets/
