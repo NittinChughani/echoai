@@ -64,7 +64,7 @@ ECHO keeps the interface lightweight and the setup straightforward:
 2. **Send a message.** The browser sends the conversation to an external hosted AI endpoint.
 3. **Read, explore, and continue.** Responses appear in the chat interface; conversation history is saved in your browser's local storage.
 
-The default integration uses **OVHcloud AI Endpoints**. An optional Cloudflare Worker implementation is also included as a fallback for maintainers.
+The current production configuration uses **OVHcloud AI Endpoints**. A Cloudflare Workers AI migration is prepared in this repository to improve request throughput while keeping access free for visitors. See the [Cloudflare setup guide](OPTIONAL_CLOUDFLARE_BACKUP.md). The migration becomes active only after a Worker is deployed and its URL is configured.
 
 > [!NOTE]
 > ECHO is free for visitors, but its third-party AI service has usage limits and may occasionally be unavailable. AI requests are processed by the external provider; don't send confidential information. Chat history is stored locally in your browser, not synced between devices.
@@ -76,7 +76,7 @@ The default integration uses **OVHcloud AI Endpoints**. An optional Cloudflare W
 | Interface | HTML5, CSS3, vanilla JavaScript |
 | Site hosting | GitHub Pages |
 | AI inference | OVHcloud AI Endpoints (ECHO Quick and ECHO Balanced) |
-| Optional alternate deployment | Cloudflare Worker with Workers AI |
+| Next AI backend (setup required) | Cloudflare Worker with Workers AI |
 | Chat storage | Browser `localStorage` |
 
 ## Run your own copy
