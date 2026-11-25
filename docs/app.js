@@ -350,7 +350,17 @@ Be accurate, honest about uncertainty, and helpful. Use Markdown when useful. Do
       // Anonymous OVHcloud API works directly from the browser. No visitor login
       // and no API key in GitHub. It has an anonymous rate limit per IP/model.
       const endpoint = useCloudflare ? apiUrl('/api/chat') : OVH_API;
-      const payload = useCloudflare ? { messages:requestMessages, mode:model, instructions } : {
+      // Keep browser requests within the Worker's input budget as well.
+      const cloudMessages = [];
+      let contextChars = 0;
+      for (let i = requestMessages.length - 1; i >= 0 && cloudMessages.length < 8; i--) {
+        const m = requestMessages[i];
+        if (contextChars + m.content.length > 12000) break;
+        cloudMessages.unshift(m);
+        contextChars += m.content.length;
+      }
+      while (cloudMessages.length && cloudMessages[0].role !== 'user') cloudMessages.shift();
+      const payload = useCloudflare ? { messages:cloudMessages, mode:model, instructions } : {
         model: OVH_MODELS[model] || OVH_MODELS.quick,
         messages: [
           {role:'system',content:AI_SYSTEM + '\nCurrent selected ECHO mode: ' + (model === 'quick' ? 'Quick (gpt-oss-20b)' : 'Balanced (Meta-Llama-3_3-70B-Instruct)') + (instructions ? '\nStyle preference: ' + instructions : '')},
